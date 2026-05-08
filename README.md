@@ -3,7 +3,7 @@
 [![ha-version](https://img.shields.io/badge/HA-2026.5.0-41bdf5?logo=home-assistant)](https://home-assistant.io)
 [![python](https://img.shields.io/badge/python-3.14-3776AB?logo=python)](https://python.org)
 [![license](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
-[![ci](https://github.com/joviangirard/home-assistant-config/actions/workflows/ci.yml/badge.svg)](https://github.com/joviangirard/home-assistant-config/actions/workflows/ci.yml)
+[![ci](https://github.com/Jovian0908/home-assistant-config/actions/workflows/ci.yml/badge.svg)](https://github.com/Jovian0908/home-assistant-config/actions/workflows/ci.yml)
 
 > Home Assistant config + a custom 12-tool LLM API + a self-healing watchdog package + a self-documenting audit toolchain. Sandbox-first, lockout-ready.
 
