@@ -78,21 +78,36 @@ async def find_dangling_refs(ha_url: str, token: str, yaml_files: list[Path]) ->
         except Exception:
             continue
         for ln_no, line in enumerate(text.splitlines(), start=1):
+            stripped = line.strip()
+            # Skip lines that are obviously service-call or method-name shaped
+            # (e.g. "service: automation.turn_on", "input_boolean.turn_off:")
+            # Real entity_id refs sit on entity_id:/target: or in singletons in lists.
+            if any(stripped.startswith(p) for p in ("#", "//", "/*")):
+                continue
             for m in ENTITY_RE.finditer(line):
                 domain, obj_id = m.group(1), m.group(2)
                 if domain not in DOMAINS:
                     continue
                 eid = f"{domain}.{obj_id}"
-                # Skip false positives: shell-script-like, log examples
-                if eid.startswith(("sun.", "zone.")) and obj_id in ("sun",):
+                # Filter: pseudo-services like automation.turn_on, automation.reload
+                if obj_id in ("turn_on", "turn_off", "toggle", "reload", "trigger",
+                              "set_value", "increment", "decrement", "select_option",
+                              "press", "send_command", "lock", "unlock", "open_cover",
+                              "close_cover", "stop_cover", "set_temperature"):
+                    continue
+                # Filter: glob/wildcard placeholders in markdown/comments
+                if obj_id.endswith(("_", "_x", "_*")):
                     continue
                 if eid in live_ids:
                     continue
-                # Heuristic: only flag if line looks like a real reference
-                if "entity_id" in line or "service:" in line or "target:" in line or eid in line:
+                # Heuristic: a real reference sits on a yaml-key line that's specifically
+                # entity_id / target / friendly mention. Service calls and prose are out.
+                if any(k in line for k in ("entity_id:", "target:", "  - sensor.",
+                                            "  - binary_sensor.", "  - automation.",
+                                            "  - input_", "device_id:", "area_id:")):
                     findings.append({
                         "entity_id": eid, "file": str(f.relative_to(f.parents[len(f.parents) - 1])),
-                        "line": ln_no, "context": line.strip()[:120],
+                        "line": ln_no, "context": stripped[:120],
                     })
     # Dedup by (entity_id, file)
     seen = set()
@@ -125,14 +140,28 @@ async def check_repairs(ha_url: str, token: str) -> list[dict]:
 # ---- find-unused-sensors --------------------------------------------------
 
 def find_unused_sensors(yaml_files: list[Path]) -> list[dict]:
-    """Find template sensors / customize entries defined but never referenced."""
-    # Collect defined names (very rough heuristic)
+    """Find template sensors / customize entries defined but never referenced.
+
+    Only scans files that look like sensor-definition packages (skips dashboards
+    where `name:` is a UI label, not a sensor name).
+    """
     defined: dict[str, Path] = {}
     referenced: set[str] = set()
     for f in yaml_files:
         try:
             text = f.read_text(encoding="utf-8")
         except Exception:
+            continue
+        # Skip dashboard files - their `name:` lines are UI labels, not sensors
+        if "dashboards" in f.parts:
+            # Still harvest references from them
+            for m in ENTITY_RE.finditer(text):
+                referenced.add(m.group(2))
+            continue
+        # Skip automation files - `alias:` is the automation name, not a sensor
+        if f.name == "automations.yaml":
+            for m in ENTITY_RE.finditer(text):
+                referenced.add(m.group(2))
             continue
         # Defined: lines like "  - name: foo" or "  foo:" inside a sensor: block
         for m in re.finditer(r"^\s+-?\s*(?:name|alias):\s*['\"]?([a-zA-Z0-9_ -]+)", text, re.MULTILINE):

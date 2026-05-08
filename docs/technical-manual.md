@@ -1,6 +1,6 @@
 # Mesh AI - Technical Manual
 
-_Auto-generated 2026-05-07T20:50:07.219308._
+_Auto-generated 2026-05-07T21:25:52.913711._
 _HA version: 2026.5.0, components: 156._
 
 Audience: future-me, called back to extend or repair after a lockout. Read this before touching anything.
@@ -246,4 +246,4 @@ Only after all five am I ready to act.
 
 **Why sandbox-first?** Cutover is a 5-minute window of CM5 downtime. By building parallel, drift testing happens against real mesh services without risking daily home control. Once sandbox scores 11/12 on the rubric, rsync to CM5.
 
-_End of technical manual. Auto-built 2026-05-07T20:50:07.219357._
+_End of technical manual. Auto-built 2026-05-07T21:25:52.913763._
