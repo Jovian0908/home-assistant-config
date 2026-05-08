@@ -11,7 +11,6 @@ Run:
 Phase 5 of the renovation v2 (2026-05-08). The lockout-resilience pillar:
 this script answers "is the config still healthy?" without me touching HA UI.
 """
-
 from __future__ import annotations
 
 import argparse
@@ -22,13 +21,17 @@ import sys
 from pathlib import Path
 
 import websockets
+import yaml
 
 
-def load_token(secrets_path: Path) -> str:
-    for line in secrets_path.read_text(encoding="utf-8").splitlines():
-        if line.startswith("HA_ADMIN_TOKEN="):
-            return line.split("=", 1)[1].strip()
-    raise SystemExit(f"HA_ADMIN_TOKEN missing in {secrets_path}")
+def load_token(secrets_path: Path, prefer: str = "HA_ADMIN_TOKEN") -> str:
+    """Load token from secrets file. Tries prefer first, then HA_TOKEN as fallback."""
+    text = secrets_path.read_text(encoding="utf-8")
+    for key in (prefer, "HA_TOKEN", "HA_ADMIN_TOKEN"):
+        for line in text.splitlines():
+            if line.startswith(f"{key}="):
+                return line.split("=", 1)[1].strip()
+    raise SystemExit(f"No HA token found in {secrets_path}")
 
 
 def gather_yaml_files(config_dir: Path) -> list[Path]:
@@ -46,55 +49,21 @@ def gather_yaml_files(config_dir: Path) -> list[Path]:
 
 ENTITY_RE = re.compile(r"\b([a-z_]+)\.([a-z0-9_]+)\b")
 DOMAINS = {
-    "alarm_control_panel",
-    "automation",
-    "binary_sensor",
-    "button",
-    "calendar",
-    "camera",
-    "climate",
-    "conversation",
-    "cover",
-    "device_tracker",
-    "event",
-    "fan",
-    "humidifier",
-    "input_boolean",
-    "input_button",
-    "input_datetime",
-    "input_number",
-    "input_select",
-    "input_text",
-    "light",
-    "lock",
-    "media_player",
-    "number",
-    "person",
-    "remote",
-    "scene",
-    "script",
-    "select",
-    "sensor",
-    "siren",
-    "stt",
-    "sun",
-    "switch",
-    "text",
-    "timer",
-    "todo",
-    "tts",
-    "update",
-    "vacuum",
-    "valve",
-    "weather",
-    "zone",
+    "alarm_control_panel", "automation", "binary_sensor", "button", "calendar",
+    "camera", "climate", "conversation", "cover", "device_tracker", "event",
+    "fan", "humidifier", "input_boolean", "input_button", "input_datetime",
+    "input_number", "input_select", "input_text", "light", "lock", "media_player",
+    "number", "person", "remote", "scene", "script", "select", "sensor", "siren",
+    "stt", "sun", "switch", "text", "timer", "todo", "tts", "update", "vacuum",
+    "valve", "weather", "zone",
 }
 
 
 async def find_dangling_refs(ha_url: str, token: str, yaml_files: list[Path]) -> list[dict]:
     """Scan YAML for entity_id refs that don't exist in HA's state machine."""
     # Pull live entity ids
-    async with websockets.connect(f"{ha_url.replace('http', 'ws')}/api/websocket", max_size=64 * 1024 * 1024) as ws:
+    async with websockets.connect(f"{ha_url.replace('http', 'ws')}/api/websocket",
+                                  max_size=64 * 1024 * 1024) as ws:
         await ws.recv()
         await ws.send(json.dumps({"type": "auth", "access_token": token}))
         ack = json.loads(await ws.recv())
@@ -124,25 +93,10 @@ async def find_dangling_refs(ha_url: str, token: str, yaml_files: list[Path]) ->
                     continue
                 eid = f"{domain}.{obj_id}"
                 # Filter: pseudo-services like automation.turn_on, automation.reload
-                if obj_id in (
-                    "turn_on",
-                    "turn_off",
-                    "toggle",
-                    "reload",
-                    "trigger",
-                    "set_value",
-                    "increment",
-                    "decrement",
-                    "select_option",
-                    "press",
-                    "send_command",
-                    "lock",
-                    "unlock",
-                    "open_cover",
-                    "close_cover",
-                    "stop_cover",
-                    "set_temperature",
-                ):
+                if obj_id in ("turn_on", "turn_off", "toggle", "reload", "trigger",
+                              "set_value", "increment", "decrement", "select_option",
+                              "press", "send_command", "lock", "unlock", "open_cover",
+                              "close_cover", "stop_cover", "set_temperature"):
                     continue
                 # Filter: glob/wildcard placeholders in markdown/comments
                 if obj_id.endswith(("_", "_x", "_*")):
@@ -151,27 +105,13 @@ async def find_dangling_refs(ha_url: str, token: str, yaml_files: list[Path]) ->
                     continue
                 # Heuristic: a real reference sits on a yaml-key line that's specifically
                 # entity_id / target / friendly mention. Service calls and prose are out.
-                if any(
-                    k in line
-                    for k in (
-                        "entity_id:",
-                        "target:",
-                        "  - sensor.",
-                        "  - binary_sensor.",
-                        "  - automation.",
-                        "  - input_",
-                        "device_id:",
-                        "area_id:",
-                    )
-                ):
-                    findings.append(
-                        {
-                            "entity_id": eid,
-                            "file": str(f.relative_to(f.parents[len(f.parents) - 1])),
-                            "line": ln_no,
-                            "context": stripped[:120],
-                        }
-                    )
+                if any(k in line for k in ("entity_id:", "target:", "  - sensor.",
+                                            "  - binary_sensor.", "  - automation.",
+                                            "  - input_", "device_id:", "area_id:")):
+                    findings.append({
+                        "entity_id": eid, "file": str(f.relative_to(f.parents[len(f.parents) - 1])),
+                        "line": ln_no, "context": stripped[:120],
+                    })
     # Dedup by (entity_id, file)
     seen = set()
     unique = []
@@ -186,10 +126,10 @@ async def find_dangling_refs(ha_url: str, token: str, yaml_files: list[Path]) ->
 
 # ---- check-repairs --------------------------------------------------------
 
-
 async def check_repairs(ha_url: str, token: str) -> list[dict]:
     """Pull active repairs/issues from HA."""
-    async with websockets.connect(f"{ha_url.replace('http', 'ws')}/api/websocket", max_size=64 * 1024 * 1024) as ws:
+    async with websockets.connect(f"{ha_url.replace('http', 'ws')}/api/websocket",
+                                  max_size=64 * 1024 * 1024) as ws:
         await ws.recv()
         await ws.send(json.dumps({"type": "auth", "access_token": token}))
         await ws.recv()
@@ -201,7 +141,6 @@ async def check_repairs(ha_url: str, token: str) -> list[dict]:
 
 
 # ---- find-unused-sensors --------------------------------------------------
-
 
 def find_unused_sensors(yaml_files: list[Path]) -> list[dict]:
     """Find template sensors / customize entries defined but never referenced.
@@ -246,7 +185,6 @@ def find_unused_sensors(yaml_files: list[Path]) -> list[dict]:
 
 # ---- main -----------------------------------------------------------------
 
-
 async def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--ha-url", default="http://192.168.0.94:8124")
@@ -255,7 +193,9 @@ async def main():
     ap.add_argument("--exit-on-findings", action="store_true")
     args = ap.parse_args()
 
-    token = load_token(Path(args.secrets))
+    # CM5 uses HA_TOKEN; sandbox uses HA_ADMIN_TOKEN
+    prefer = "HA_TOKEN" if "192.168.0.50" in args.ha_url else "HA_ADMIN_TOKEN"
+    token = load_token(Path(args.secrets), prefer=prefer)
     config_dir = Path(args.config_dir)
     yaml_files = gather_yaml_files(config_dir) if config_dir.exists() else []
 
