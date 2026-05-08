@@ -1,0 +1,24 @@
+[tool.ruff]
+line-length = 120
+target-version = "py311"
+
+[tool.ruff.lint]
+# Sensible default for an HA config repo:
+#   E, W: pycodestyle
+#   F:    pyflakes (unused imports, undefined names)
+#   I:    import sorting
+#   UP:   pyupgrade (modern syntax)
+#   B:    flake8-bugbear (common bugs)
+# Skip S (bandit), N (pep8-naming), D (pydocstyle) - too noisy for a config repo
+# where assert-based handshakes and shorthand variable names are normal.
+select = ["E", "W", "F", "I", "UP", "B"]
+ignore = [
+  "B008",  # Function call in argument defaults - common with vol.Schema
+  "UP041", # asyncio.TimeoutError -> TimeoutError, breaks <3.11 compat we don't care about
+  "E501",  # Line too long - intentional for markdown strings written into manuals
+]
+
+[tool.ruff.format]
+# Don't fight existing style; just enforce no trailing whitespace + final newline.
+quote-style = "double"
+indent-style = "space"

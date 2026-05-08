@@ -38,7 +38,7 @@ jobs:
         run: cp secrets.fake.yaml secrets.yaml
 
       - name: Run HA core check (${{ matrix.version }})
-        uses: frenck/action-home-assistant@b5edcdcdcaa55e6db7baf2e1c8ebbe92be0ac5e1 # v1.4.0
+        uses: frenck/action-home-assistant@941d5d917f4c1c7a7e7d4087526daf90d53f4437 # v1.4.1
         with:
           path: "."
           secrets: secrets.fake.yaml
@@ -108,6 +108,4 @@ jobs:
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
 
       - name: Run zizmor
-        uses: zizmorcore/zizmor-action@b1e9c77a3f4be2a7e51bc9b48a9d7eb3b97a86eb # v0.1.1
-        with:
-          fail-on-findings: false
+        uses: zizmorcore/zizmor-action@b1d7e1fb5de872772f31590499237e7cce841e8e # v0.5.3

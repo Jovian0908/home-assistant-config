@@ -10,9 +10,9 @@ Output: docs/flagship-demo-transcript.md
 Each act is timestamped + shows: prompt -> agent response -> tool that fired
 (if visible) -> elapsed seconds.
 """
+
 from __future__ import annotations
 
-import json
 import time
 from datetime import datetime
 from pathlib import Path
@@ -26,24 +26,42 @@ HA_URL = "http://192.168.0.94:8124"
 AGENT = "conversation.mesh_ai_final"
 
 ACTS = [
-    {"n": 1, "title": "Scene awareness",
-     "prompt": "Use mesh_scene_current to tell me what scene I'm in right now.",
-     "tool": "mesh_scene_current"},
-    {"n": 2, "title": "Aria research (async spawn)",
-     "prompt": "Spawn an aria research project on the best AM5 motherboard for two V100 GPUs.",
-     "tool": "mesh_aria_research"},
-    {"n": 3, "title": "Knowledge search (cross-session memory)",
-     "prompt": "Search my personal knowledge for anything about Hailo NPU using mesh_knowledge_search.",
-     "tool": "mesh_knowledge_search"},
-    {"n": 4, "title": "Council reasoning",
-     "prompt": "Council, should I run the heater pre-heat tonight given that I'm home and the heater current consumption sensor is unavailable? Use mesh_council_decide depth=fast.",
-     "tool": "mesh_council_decide"},
-    {"n": 5, "title": "Aria recall (cross-session memory)",
-     "prompt": "List my recent aria research projects using mesh_aria_recall.",
-     "tool": "mesh_aria_recall"},
-    {"n": 6, "title": "Knowledge ingest (persistence)",
-     "prompt": "Save this to my notes using mesh_knowledge_ingest: 'Phase 1c voice pipeline verified end-to-end on 2026-05-08; qwen2.5:14b routing through mesh_llm to live mesh services.'",
-     "tool": "mesh_knowledge_ingest"},
+    {
+        "n": 1,
+        "title": "Scene awareness",
+        "prompt": "Use mesh_scene_current to tell me what scene I'm in right now.",
+        "tool": "mesh_scene_current",
+    },
+    {
+        "n": 2,
+        "title": "Aria research (async spawn)",
+        "prompt": "Spawn an aria research project on the best AM5 motherboard for two V100 GPUs.",
+        "tool": "mesh_aria_research",
+    },
+    {
+        "n": 3,
+        "title": "Knowledge search (cross-session memory)",
+        "prompt": "Search my personal knowledge for anything about Hailo NPU using mesh_knowledge_search.",
+        "tool": "mesh_knowledge_search",
+    },
+    {
+        "n": 4,
+        "title": "Council reasoning",
+        "prompt": "Council, should I run the heater pre-heat tonight given that I'm home and the heater current consumption sensor is unavailable? Use mesh_council_decide depth=fast.",
+        "tool": "mesh_council_decide",
+    },
+    {
+        "n": 5,
+        "title": "Aria recall (cross-session memory)",
+        "prompt": "List my recent aria research projects using mesh_aria_recall.",
+        "tool": "mesh_aria_recall",
+    },
+    {
+        "n": 6,
+        "title": "Knowledge ingest (persistence)",
+        "prompt": "Save this to my notes using mesh_knowledge_ingest: 'Phase 1c voice pipeline verified end-to-end on 2026-05-08; qwen2.5:14b routing through mesh_llm to live mesh services.'",
+        "tool": "mesh_knowledge_ingest",
+    },
 ]
 
 
@@ -110,26 +128,28 @@ def run():
                 lines.append("")
                 print(f"  FAILED: {e}")
 
-    lines.extend([
-        "## Verification path",
-        "",
-        "Real-data proof per act:",
-        "1. `mesh_scene_current` -> hits `http://scene:5555/context` (live SceneEngine state)",
-        "2. `mesh_aria_research` -> POSTs `http://aria:5050/projects` (project_id returned)",
-        "3. `mesh_knowledge_search` -> POSTs `http://knowledge:5850/search` (ChromaDB top-k)",
-        "4. `mesh_council_decide` -> POSTs `http://council:8800/council/ask` (planner+reviewer chain)",
-        "5. `mesh_aria_recall` -> GETs `http://aria:5050/projects` (lists active+archived)",
-        "6. `mesh_knowledge_ingest` -> POSTs `http://knowledge:5850/ingest/conversations`",
-        "",
-        "Each tool definition lives in `custom_components/mesh_llm/api.py`.",
-        "Each subclasses `homeassistant.helpers.llm.Tool` with `parameters: vol.Schema`.",
-        "",
-        "## Replay",
-        "",
-        "```",
-        "python C:\\Users\\jovia\\scripts\\flagship_demo_drive.py",
-        "```",
-    ])
+    lines.extend(
+        [
+            "## Verification path",
+            "",
+            "Real-data proof per act:",
+            "1. `mesh_scene_current` -> hits `http://scene:5555/context` (live SceneEngine state)",
+            "2. `mesh_aria_research` -> POSTs `http://aria:5050/projects` (project_id returned)",
+            "3. `mesh_knowledge_search` -> POSTs `http://knowledge:5850/search` (ChromaDB top-k)",
+            "4. `mesh_council_decide` -> POSTs `http://council:8800/council/ask` (planner+reviewer chain)",
+            "5. `mesh_aria_recall` -> GETs `http://aria:5050/projects` (lists active+archived)",
+            "6. `mesh_knowledge_ingest` -> POSTs `http://knowledge:5850/ingest/conversations`",
+            "",
+            "Each tool definition lives in `custom_components/mesh_llm/api.py`.",
+            "Each subclasses `homeassistant.helpers.llm.Tool` with `parameters: vol.Schema`.",
+            "",
+            "## Replay",
+            "",
+            "```",
+            "python C:\\Users\\jovia\\scripts\\flagship_demo_drive.py",
+            "```",
+        ]
+    )
 
     OUTFILE.write_text("\n".join(lines), encoding="utf-8")
     print(f"\n=> wrote transcript: {OUTFILE}  ({OUTFILE.stat().st_size} bytes)")

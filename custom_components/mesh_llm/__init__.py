@@ -5,6 +5,7 @@ Phase 1b of the renovation v2 (2026-05-07). Bypasses HA's MCP Client transport
 llm registry. Conversation agents add `mesh_llm` to their llm_hass_api list to
 get the 12 mesh tools alongside HA's assist tools.
 """
+
 from __future__ import annotations
 
 import logging

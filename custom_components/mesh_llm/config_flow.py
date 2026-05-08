@@ -1,4 +1,5 @@
 """Minimal config flow for mesh_llm -- single 'add' step, no settings."""
+
 from __future__ import annotations
 
 from typing import Any

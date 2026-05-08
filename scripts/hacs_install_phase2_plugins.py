@@ -7,10 +7,9 @@ Connects to sandbox HA WebSocket API and drives HACS to:
 
 Run: python scripts/hacs_install_phase2_plugins.py
 """
+
 import asyncio
 import json
-import os
-import sys
 from pathlib import Path
 
 import websockets
@@ -21,17 +20,17 @@ SECRETS = Path(r"C:\Users\jovia\mesh.secrets.env")
 
 PLUGINS = [
     # (full_name, category, description)
-    ("piitaya/lovelace-mushroom",                "plugin", "Mushroom cards"),
-    ("Clooos/Bubble-Card",                       "plugin", "Bubble Card 3.1.5+"),
-    ("thomasloven/lovelace-card-mod",            "plugin", "card-mod 4.x"),
-    ("custom-cards/button-card",                 "plugin", "button-card"),
-    ("RomRider/apexcharts-card",                 "plugin", "ApexCharts card"),
-    ("thomasloven/lovelace-auto-entities",       "plugin", "auto-entities"),
-    ("custom-cards/decluttering-card",           "plugin", "decluttering-card"),
-    ("thomasloven/lovelace-layout-card",         "plugin", "layout-card"),
-    ("bramkragten/swipe-card",                   "plugin", "swipe-card"),
-    ("dermotduffy/advanced-camera-card",         "plugin", "advanced-camera-card v3"),
-    ("kalkih/mini-media-player",                 "plugin", "mini-media-player"),
+    ("piitaya/lovelace-mushroom", "plugin", "Mushroom cards"),
+    ("Clooos/Bubble-Card", "plugin", "Bubble Card 3.1.5+"),
+    ("thomasloven/lovelace-card-mod", "plugin", "card-mod 4.x"),
+    ("custom-cards/button-card", "plugin", "button-card"),
+    ("RomRider/apexcharts-card", "plugin", "ApexCharts card"),
+    ("thomasloven/lovelace-auto-entities", "plugin", "auto-entities"),
+    ("custom-cards/decluttering-card", "plugin", "decluttering-card"),
+    ("thomasloven/lovelace-layout-card", "plugin", "layout-card"),
+    ("bramkragten/swipe-card", "plugin", "swipe-card"),
+    ("dermotduffy/advanced-camera-card", "plugin", "advanced-camera-card v3"),
+    ("kalkih/mini-media-player", "plugin", "mini-media-player"),
     # Note: floor3d-pro-card uses a different repo pattern; will install separately
 ]
 
@@ -99,22 +98,27 @@ async def main():
             print(f"\n--- {full_name} ({desc}) ---")
 
             # 1. Add repository
-            r = await cmd(ws, msg_id, {
-                "type": "hacs/repositories/add",
-                "repository": full_name,
-                "category": category,
-            }, timeout=45)
+            r = await cmd(
+                ws,
+                msg_id,
+                {
+                    "type": "hacs/repositories/add",
+                    "repository": full_name,
+                    "category": category,
+                },
+                timeout=45,
+            )
             msg_id += 1
             if not r.get("success"):
                 err = r.get("error", {}).get("message", "?")
                 if "already" in err.lower():
-                    print(f"  add: already added (continuing)")
+                    print("  add: already added (continuing)")
                 else:
                     print(f"  add FAILED: {err}")
                     results.append((full_name, "add-fail", err))
                     continue
             else:
-                print(f"  add ok")
+                print("  add ok")
 
             # 2. Look up repository id (HACS list is huge so this is slow)
             rlist = await cmd(ws, msg_id, {"type": "hacs/repositories/list"}, timeout=60)
@@ -125,27 +129,32 @@ async def main():
                     repo_id = repo.get("id")
                     break
             if not repo_id:
-                print(f"  lookup FAILED -- repo not in list")
+                print("  lookup FAILED -- repo not in list")
                 results.append((full_name, "lookup-fail", ""))
                 continue
             print(f"  repo_id={repo_id}")
 
             # 3. Install latest version (HACS calls it "download")
-            r = await cmd(ws, msg_id, {
-                "type": "hacs/repository/download",
-                "repository": str(repo_id),
-            }, timeout=180)
+            r = await cmd(
+                ws,
+                msg_id,
+                {
+                    "type": "hacs/repository/download",
+                    "repository": str(repo_id),
+                },
+                timeout=180,
+            )
             msg_id += 1
             if not r.get("success"):
                 err = r.get("error", {}).get("message", "?")
                 print(f"  install FAILED: {err}")
                 results.append((full_name, "install-fail", err))
                 continue
-            print(f"  install ok")
+            print("  install ok")
             results.append((full_name, "ok", ""))
 
         # Summary
-        print(f"\n=== summary ===")
+        print("\n=== summary ===")
         ok_count = sum(1 for r in results if r[1] == "ok")
         print(f"installed {ok_count} / {len(PLUGINS)}")
         for full_name, status, msg in results:
