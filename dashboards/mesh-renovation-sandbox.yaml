@@ -1,5 +1,7 @@
 # mesh-renovation-sandbox.yaml - the AM5 sandbox killer dashboard.
-# 2026-05-08 rebuild: surfaces 26 live mesh REST sensors + 12 conversational tools.
+# 2026-05-08 rebuild: surfaces 28 mesh REST sensors + 5 control scripts.
+#
+# 4 views: Brain (live status) | Audit (what's been learned) | Control | System
 
 title: Mesh AI
 views:
@@ -23,6 +25,15 @@ views:
             entity: sensor.mesh_brain
             fill_container: true
             multiline_secondary: true
+            tap_action:
+              action: navigate
+              navigation_path: /mesh-renovation/audit
+            card_mod:
+              style: |
+                ha-card {
+                  background: linear-gradient(135deg, rgba(76,175,80,0.15), rgba(33,150,243,0.10)) !important;
+                  border: 1px solid rgba(76,175,80,0.3);
+                }
           - type: custom:mushroom-template-card
             primary: "Activity tier"
             secondary: "{{ states('sensor.mesh_activity_tier') | title }}"
@@ -35,6 +46,16 @@ views:
               {% else %}grey{% endif %}
             entity: sensor.mesh_activity_tier
             fill_container: true
+          - type: custom:mushroom-template-card
+            primary: "Anomalies"
+            secondary: "{{ states('sensor.mesh_scene_anomalies') }} unack · tap to review"
+            icon: mdi:alert-decagram
+            icon_color: "{{ 'red' if states('sensor.mesh_scene_anomalies') | int(0) > 10 else 'amber' if states('sensor.mesh_scene_anomalies') | int(0) > 0 else 'green' }}"
+            entity: sensor.mesh_scene_anomalies
+            fill_container: true
+            tap_action:
+              action: navigate
+              navigation_path: /mesh-renovation/audit
           - type: markdown
             content: >
               ### Live scene narrative
@@ -44,6 +65,12 @@ views:
               ---
 
               _Updated {{ relative_time(state_attr('sensor.mesh_scene_narrative','last_scene_updated') | as_datetime) if state_attr('sensor.mesh_scene_narrative','last_scene_updated') else 'never' }}_
+            card_mod:
+              style: |
+                ha-card {
+                  background: linear-gradient(180deg, rgba(63,81,181,0.08), rgba(63,81,181,0.02)) !important;
+                  border-left: 3px solid #3F51B5;
+                }
 
       # ----- Service grid: 6 mesh brains -----
       - type: grid
@@ -98,88 +125,231 @@ views:
             content: >
               {% set faces = state_attr('sensor.mesh_vision_faces_enrolled','enrolled') %}
               {% if faces %}
-              **{{ faces | length }} faces enrolled:**
-              {% for f in faces %}
-              - **{{ f | title }}**
-              {% endfor %}
+              **{{ faces | length }} enrolled:** {{ faces | join(' · ') | title }}
 
-              _Cameras seen: {{ state_attr('sensor.mesh_vision_events','cameras') | join(', ') }}_
+              **Cameras seen:** {{ state_attr('sensor.mesh_vision_events','cameras') | join(', ') }}
 
-              _Model: {{ state_attr('sensor.mesh_vision_events','model') }} · {{ state_attr('sensor.mesh_vision_events','llava_errors') }} errors total_
+              **Model:** `{{ state_attr('sensor.mesh_vision_events','model') }}` · {{ state_attr('sensor.mesh_vision_events','llava_errors') }} errors total
               {% else %}
               _(no faces enrolled yet)_
               {% endif %}
 
-      # ----- Council recent queries -----
+  # ============================================================
+  - title: Audit
+    path: audit
+    icon: mdi:clipboard-list
+    type: sections
+    max_columns: 2
+    sections:
+      # ----- Anomalies (most actionable) -----
+      - type: grid
+        cards:
+          - type: heading
+            heading: "Anomalies to review ({{ states('sensor.mesh_scene_anomalies') }} unack)"
+            icon: mdi:alert-decagram
+          - type: markdown
+            content: >
+              {% set items = state_attr('sensor.mesh_scene_anomalies','items') or [] %}
+              {% set unack = items | rejectattr('acknowledged','equalto',1) | list %}
+              {% if unack %}
+              | When | Who | What | Where |
+              |---|---|---|---|
+              {% for a in unack[:15] -%}
+              | {{ a.timestamp[5:16] }} | {{ a.who }} | {{ a.what }} | {{ a.location[:40] }} |
+              {% endfor %}
+
+              _Showing {{ [unack|length, 15]|min }} of {{ unack|length }} unacknowledged · {{ items|length }} total_
+              {% else %}
+              _No unacknowledged anomalies._
+              {% endif %}
+
+      # ----- Top routines learned -----
+      - type: grid
+        cards:
+          - type: heading
+            heading: "Top learned routines ({{ state_attr('sensor.mesh_scene_top_routines','routines') | length if state_attr('sensor.mesh_scene_top_routines','routines') else 0 }})"
+            icon: mdi:repeat-variant
+          - type: markdown
+            content: >
+              {% set rs = state_attr('sensor.mesh_scene_top_routines','routines') or [] %}
+              {% set top = rs | sort(attribute='occurrences', reverse=true) %}
+              {% if top %}
+              | # | Pattern | Occurrences | Confidence |
+              |---|---|---|---|
+              {% for r in top[:15] -%}
+              | {{ r.id }} | **{{ r.who }}** doing **{{ r.what }}** in *{{ r.location[:30] }}* day {{ r.day_of_week }} hour {{ r.hour }} | {{ r.occurrences }} | {{ "%.0f"|format(r.confidence*100) }}% |
+              {% endfor %}
+
+              _Showing top 15 by occurrences._
+              {% else %}
+              _No routines learned yet._
+              {% endif %}
+
+      # ----- Aria projects -----
+      - type: grid
+        cards:
+          - type: heading
+            heading: "Aria research ({{ states('sensor.mesh_aria_projects_total') }} projects)"
+            icon: mdi:flask
+          - type: markdown
+            content: >
+              {% set archived = state_attr('sensor.mesh_aria_projects_total','archived') or [] %}
+              {% if archived %}
+              | When | Status | Goal |
+              |---|---|---|
+              {% for p in archived[:10] -%}
+              | {{ p.created_at[5:16] }} | {{ "X" if p.status=="killed" else "OK" if p.status=="complete" else p.status }} | {{ p.goal[:120] }} |
+              {% endfor %}
+
+              _Active: {{ states('sensor.mesh_aria_projects_active') }} · Archived: {{ archived|length }}_
+              {% else %}
+              _No aria projects yet._
+              {% endif %}
+
+      # ----- Recent council queries -----
       - type: grid
         cards:
           - type: heading
             heading: Recent council queries
-            icon: mdi:history
+            icon: mdi:account-supervisor-circle
           - type: markdown
             content: >
-              {% set recent = state_attr('sensor.mesh_council_status','memory').recent if state_attr('sensor.mesh_council_status','memory') else [] %}
+              {% set mem = state_attr('sensor.mesh_council_status','memory') %}
+              {% set recent = mem.recent if mem else [] %}
               {% if recent %}
-              {% for q in recent[:5] %}
-              - **{{ q.timestamp[5:16] }}** -- _{{ q.text[:100] }}{% if q.text|length > 100 %}...{% endif %}_
+              | When | Query |
+              |---|---|
+              {% for q in recent[:10] -%}
+              | {{ q.timestamp[5:16] }} | {{ q.text[:140] }}{% if q.text|length > 140 %}...{% endif %} |
               {% endfor %}
+
+              _Cache hit ratio: {{ states('sensor.mesh_council_cache_hit_ratio') }}% · Total queries: {{ states('sensor.mesh_council_queries') }}_
               {% else %}
               _No recent queries._
               {% endif %}
 
   # ============================================================
-  - title: Tools
-    path: tools
-    icon: mdi:tools
+  - title: Control
+    path: control
+    icon: mdi:gesture-tap-button
     type: sections
     max_columns: 2
     sections:
+      # ----- Last action result (top, prominent) -----
+      - type: grid
+        cards:
+          - type: custom:mushroom-template-card
+            primary: Last action result
+            secondary: "{{ states('input_text.mesh_last_action_result') }}"
+            icon: mdi:check-circle
+            icon_color: |
+              {% set s = states('input_text.mesh_last_action_result') %}
+              {% if 'FAIL' in s %}red{% elif s == 'Ready' %}grey{% else %}green{% endif %}
+            entity: input_text.mesh_last_action_result
+            fill_container: true
+            multiline_secondary: true
+            card_mod:
+              style: |
+                ha-card {
+                  border-left: 3px solid var(--primary-color);
+                }
+
+      # ----- Ask Council -----
       - type: grid
         cards:
           - type: heading
-            heading: 12 mesh tools (the headline)
-            icon: mdi:tools
-          - type: markdown
-            content: |
-              These 12 tools are registered as `llm.Tool` subclasses in `custom_components/mesh_llm/api.py`. The conversation agent picks them at runtime based on the user's prompt.
+            heading: Ask Council
+            icon: mdi:account-supervisor
+          - type: entities
+            entities:
+              - entity: input_text.mesh_council_query
+                name: Question
+            show_header_toggle: false
+          - type: custom:mushroom-template-card
+            primary: "Ask"
+            secondary: "Sends to Council :8800/council/ask (depth=fast). Result lands above."
+            icon: mdi:send
+            icon_color: indigo
+            tap_action:
+              action: call-service
+              service: script.ask_council
+            multiline_secondary: true
 
-              **Talk to the agent:** Settings → Voice assistants → Mesh AI → say a query that maps to one of the tools.
-
-              **Replay the 6-act demo:** `python scripts/flagship_demo_drive.py` regenerates `docs/flagship-demo-transcript.md`.
-
+      # ----- Search Knowledge -----
       - type: grid
         cards:
           - type: heading
-            heading: Tool registry
-            icon: mdi:bookshelf
-          - type: markdown
-            content: |
-              | # | Tool | Backend | Purpose |
-              |---|---|---|---|
-              | 1 | `mesh_council_decide` | Council :8800 | Multi-step reasoning chain |
-              | 2 | `mesh_knowledge_search` | Knowledge :5850 | Semantic search across personal corpus |
-              | 3 | `mesh_knowledge_ingest` | Knowledge :5850 | Persist note/observation |
-              | 4 | `mesh_scene_current` | Scene :5555 | Live scene narrative |
-              | 5 | `mesh_vision_describe` | Vision :6600 | VLM scene description |
-              | 6 | `mesh_vision_list_recent` | Vision :6600 | Recent retained payloads |
-              | 7 | `mesh_aria_research` | ARIA :5050 | Spawn async research project |
-              | 8 | `mesh_aria_recall` | ARIA :5050 | List recent projects |
-              | 9 | `mesh_sentiment_analyze` | Sentiment :5800 | Sentiment + emotion classification |
-              | 10 | `mesh_routine_predict` | Routine :5500 | Routine prediction |
-              | 11 | `mesh_memory_recall` | Memory :5950 | Episodic memory search |
-              | 12 | `mesh_genesis_spawn` | Genesis :6400 | (DANGEROUS) Auto-code new capability |
+            heading: Search knowledge
+            icon: mdi:database-search
+          - type: entities
+            entities:
+              - entity: input_text.mesh_knowledge_query
+                name: Search query
+            show_header_toggle: false
+          - type: custom:mushroom-template-card
+            primary: "Search"
+            secondary: "Searches {{ states('sensor.mesh_knowledge_chunks') }} chunks. Top result lands above."
+            icon: mdi:magnify
+            icon_color: cyan
+            tap_action:
+              action: call-service
+              service: script.search_knowledge
+            multiline_secondary: true
 
+      # ----- Save Note -----
       - type: grid
         cards:
           - type: heading
-            heading: Conversation agents
-            icon: mdi:forum
-          - type: custom:auto-entities
-            card:
-              type: entities
-            filter:
-              include:
-                - domain: conversation
+            heading: Save note to knowledge
+            icon: mdi:note-plus
+          - type: entities
+            entities:
+              - entity: input_text.mesh_knowledge_note
+                name: Note text
+            show_header_toggle: false
+          - type: custom:mushroom-template-card
+            primary: "Save"
+            secondary: "Persists to ChromaDB. Confirmation lands above."
+            icon: mdi:content-save
+            icon_color: green
+            tap_action:
+              action: call-service
+              service: script.save_knowledge_note
+            multiline_secondary: true
+
+      # ----- Quick actions -----
+      - type: grid
+        cards:
+          - type: heading
+            heading: Quick actions
+            icon: mdi:flash
+          - type: custom:mushroom-template-card
+            primary: "Re-narrate scene"
+            secondary: "Forces SceneEngine to regenerate llava narrative now"
+            icon: mdi:script-text
+            icon_color: deep-purple
+            tap_action:
+              action: call-service
+              service: script.refresh_scene_narrative
+            multiline_secondary: true
+          - type: custom:mushroom-template-card
+            primary: "Fire watchdog"
+            secondary: "Manually trigger automation re-enable check (current count: {{ states('counter.watchdog_reenable_count') }})"
+            icon: mdi:shield-refresh
+            icon_color: amber
+            tap_action:
+              action: call-service
+              service: script.fire_watchdog_reenable
+            multiline_secondary: true
+          - type: custom:mushroom-template-card
+            primary: "Quiet mode"
+            secondary: "{{ 'ON - mesh muted for 8h' if is_state('input_boolean.mesh_quiet_mode','on') else 'OFF - mesh active' }}"
+            icon: "{{ 'mdi:volume-off' if is_state('input_boolean.mesh_quiet_mode','on') else 'mdi:volume-high' }}"
+            icon_color: "{{ 'blue' if is_state('input_boolean.mesh_quiet_mode','on') else 'green' }}"
+            entity: input_boolean.mesh_quiet_mode
+            tap_action:
+              action: toggle
+            multiline_secondary: true
 
   # ============================================================
   - title: System
@@ -210,7 +380,6 @@ views:
                 secondary_info: last-triggered
               - entity: automation.watchdog_mesh_service_offline_alert
                 secondary_info: last-triggered
-              - entity: input_boolean.mesh_quiet_mode
 
       - type: grid
         cards:
@@ -237,21 +406,25 @@ views:
       - type: grid
         cards:
           - type: heading
-            heading: Mesh metrics
+            heading: All mesh metrics
             icon: mdi:chart-line
           - type: entities
             entities:
-              - entity: sensor.mesh_council_queries
-              - entity: sensor.mesh_council_cache_hit_ratio
-              - entity: sensor.mesh_knowledge_chunks
-              - entity: sensor.mesh_knowledge_files
-              - entity: sensor.mesh_vision_events
-              - entity: sensor.mesh_vision_llava_calls
-              - entity: sensor.mesh_scene_events_today
-              - entity: sensor.mesh_scene_routines_learned
-              - entity: sensor.mesh_scene_anomalies_24h
-              - entity: sensor.mesh_sentiment_analyses
-              - entity: sensor.mesh_aria_projects_total
+              - sensor.mesh_council_queries
+              - sensor.mesh_council_cache_hit_ratio
+              - sensor.mesh_knowledge_chunks
+              - sensor.mesh_knowledge_files
+              - sensor.mesh_vision_events
+              - sensor.mesh_vision_llava_calls
+              - sensor.mesh_vision_faces_enrolled
+              - sensor.mesh_scene_events_today
+              - sensor.mesh_scene_routines_learned
+              - sensor.mesh_scene_top_routines
+              - sensor.mesh_scene_anomalies_24h
+              - sensor.mesh_scene_anomalies
+              - sensor.mesh_sentiment_analyses
+              - sensor.mesh_aria_projects_total
+              - sensor.mesh_aria_projects_active
 
       - type: grid
         cards:
@@ -263,6 +436,6 @@ views:
               **Phase 5 LIVE** - auto-generated:
               - **Family manual**: `docs/family-manual.md`
               - **Technical manual**: `docs/technical-manual.md`
-              - **Audit**: `python scripts/ha_audit.py`
+              - **Audit script**: `python scripts/ha_audit.py`
               - **Public repo**: [github.com/Jovian0908/home-assistant-config](https://github.com/Jovian0908/home-assistant-config)
               - **Demo transcript**: `docs/flagship-demo-transcript.md`

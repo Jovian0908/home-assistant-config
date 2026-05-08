@@ -1,0 +1,166 @@
+# packages/mesh_control.yaml - control surface for the dashboard
+# Input helpers + scripts that wire dashboard buttons to mesh tools/services.
+
+# Input boxes + last-action tracker (all under one input_text: block)
+input_text:
+  mesh_council_query:
+    name: Ask council
+    icon: mdi:account-supervisor
+    max: 255
+    initial: ""
+  mesh_knowledge_query:
+    name: Search knowledge
+    icon: mdi:database-search
+    max: 200
+    initial: ""
+  mesh_knowledge_note:
+    name: Save note
+    icon: mdi:note-plus
+    max: 255
+    initial: ""
+  mesh_last_action_result:
+    name: Last action
+    max: 255
+    initial: "Ready"
+
+# REST commands to fire mesh services directly
+rest_command:
+  mesh_council_ask:
+    url: "http://council:8800/council/ask"
+    method: POST
+    headers:
+      X-Mesh-Token: !secret MESH_TOKEN
+      Content-Type: application/json
+    payload: '{"query": "{{ query }}", "depth": "fast"}'
+    timeout: 60
+  mesh_knowledge_search:
+    url: "http://knowledge:5850/search"
+    method: POST
+    headers:
+      X-Mesh-Token: !secret MESH_TOKEN
+      Content-Type: application/json
+    payload: '{"query": "{{ query }}", "n_results": 5}'
+    timeout: 30
+  mesh_knowledge_ingest:
+    url: "http://knowledge:5850/ingest/conversations"
+    method: POST
+    headers:
+      X-Mesh-Token: !secret MESH_TOKEN
+      Content-Type: application/json
+    payload: '{"text": "{{ text }}", "metadata": {"source": "ha_dashboard", "timestamp": "{{ now().isoformat() }}"}}'
+    timeout: 30
+  mesh_scene_renarrate:
+    url: "http://scene:5555/narrate"
+    method: POST
+    headers:
+      X-Mesh-Token: !secret MESH_TOKEN
+    timeout: 30
+
+# Scripts: bind input_text + rest_command + result-recording
+script:
+  ask_council:
+    alias: "Ask council (uses input_text.mesh_council_query)"
+    sequence:
+      - service: input_text.set_value
+        target:
+          entity_id: input_text.mesh_last_action_result
+        data:
+          value: "Asking council..."
+      - service: rest_command.mesh_council_ask
+        data:
+          query: "{{ states('input_text.mesh_council_query') }}"
+        response_variable: response
+      - service: input_text.set_value
+        target:
+          entity_id: input_text.mesh_last_action_result
+        data:
+          value: >
+            {% if response.status == 200 %}
+              {{ (response.content.final_answer | default('(no answer)'))[:480] }}
+            {% else %}
+              FAIL: HTTP {{ response.status }}
+            {% endif %}
+
+  search_knowledge:
+    alias: "Search knowledge (uses input_text.mesh_knowledge_query)"
+    sequence:
+      - service: input_text.set_value
+        target:
+          entity_id: input_text.mesh_last_action_result
+        data:
+          value: "Searching..."
+      - service: rest_command.mesh_knowledge_search
+        data:
+          query: "{{ states('input_text.mesh_knowledge_query') }}"
+        response_variable: response
+      - service: input_text.set_value
+        target:
+          entity_id: input_text.mesh_last_action_result
+        data:
+          value: >
+            {% if response.status == 200 %}
+              {% set hits = response.content.results | default([]) %}
+              {% if hits %}
+                Found {{ hits | length }} hits. Top: {{ (hits[0].text | default(''))[:300] }}
+              {% else %}
+                No hits.
+              {% endif %}
+            {% else %}
+              FAIL: HTTP {{ response.status }}
+            {% endif %}
+
+  save_knowledge_note:
+    alias: "Save knowledge note (uses input_text.mesh_knowledge_note)"
+    sequence:
+      - service: input_text.set_value
+        target:
+          entity_id: input_text.mesh_last_action_result
+        data:
+          value: "Saving..."
+      - service: rest_command.mesh_knowledge_ingest
+        data:
+          text: "{{ states('input_text.mesh_knowledge_note') }}"
+        response_variable: response
+      - service: input_text.set_value
+        target:
+          entity_id: input_text.mesh_last_action_result
+        data:
+          value: >
+            {% if response.status in [200, 201] %}
+              Saved. {{ response.content.doc_id | default('') }}
+            {% else %}
+              FAIL: HTTP {{ response.status }}
+            {% endif %}
+      - service: input_text.set_value
+        target:
+          entity_id: input_text.mesh_knowledge_note
+        data:
+          value: ""
+
+  refresh_scene_narrative:
+    alias: "Trigger scene re-narration"
+    sequence:
+      - service: rest_command.mesh_scene_renarrate
+        response_variable: response
+      - service: input_text.set_value
+        target:
+          entity_id: input_text.mesh_last_action_result
+        data:
+          value: >
+            {% if response.status == 200 %}
+              Scene re-narrated. New text in 30s.
+            {% else %}
+              FAIL: HTTP {{ response.status }}
+            {% endif %}
+
+  fire_watchdog_reenable:
+    alias: "Manually fire automation watchdog"
+    sequence:
+      - service: automation.trigger
+        target:
+          entity_id: automation.watchdog_re_enable_disabled_automation
+      - service: input_text.set_value
+        target:
+          entity_id: input_text.mesh_last_action_result
+        data:
+          value: "Watchdog fired. Counter: {{ states('counter.watchdog_reenable_count') }}"

@@ -172,6 +172,37 @@ rest:
         value_template: "{{ value_json.status }}"
         icon: mdi:memory
 
+  # ---- Scene routines (THE LEARNED PATTERNS) -----------------------------
+  - resource: http://scene:5555/routines
+    scan_interval: 90
+    headers:
+      X-Mesh-Token: !secret MESH_TOKEN
+    sensor:
+      - name: "Mesh Scene top routines"
+        unique_id: mesh_scene_top_routines
+        value_template: "{{ value_json.routines | length }}"
+        unit_of_measurement: "routines"
+        icon: mdi:repeat-variant
+        json_attributes:
+          - routines
+
+
+# ---- Anomalies (response is a list, REST sensor can't attribute-extract) ---
+# Helper script lives at /config/scripts/mesh_anomalies.py - reads MESH_TOKEN from env.
+command_line:
+  - sensor:
+      name: "Mesh Scene anomalies"
+      unique_id: mesh_scene_anomalies_list
+      scan_interval: 30
+      command: "python3 /config/scripts/mesh_anomalies.py"
+      value_template: "{{ value_json.unack_count }}"
+      unit_of_measurement: "unack"
+      icon: mdi:alert-decagram-outline
+      json_attributes:
+        - count
+        - unack_count
+        - items
+
 # ---- Service health binary sensors (one per mesh service) -----------------
 binary_sensor:
   - platform: template
