@@ -1,0 +1,12 @@
+- id: dummy_for_chaos_drill
+  alias: "Dummy for chaos drill"
+  description: "Dummy automation - exists only so the watchdog has something to re-enable in tests"
+  mode: single
+  trigger:
+    - platform: time
+      at: "03:33:33"
+  action:
+    - service: logbook.log
+      data:
+        name: Dummy
+        message: "Dummy fired (chaos drill target)"

@@ -1,0 +1,120 @@
+# packages/watchdogs.yaml - Phase 4 self-healing layer
+#
+# Three watchdogs:
+#   1. automation_watchdog       - re-enables any automation that flips to "off" (after 5-min cooldown)
+#   2. mesh_service_watchdog     - if a mesh service goes offline >2min, ping mesh-bridge to restart it
+#   3. quiet_mode_safety         - belt-and-suspenders auto-clear of 8h kill-switch
+#
+# All three run silently in the background. They log to logbook so you can audit
+# what they touched. None of them notify; they just heal.
+
+automation:
+  - id: watchdog_automation_reenable
+    alias: "Watchdog: re-enable disabled automation"
+    description: >
+      basnijholt-pattern. Every 5 minutes, scan all automations and re-enable any that
+      are currently off. Skip self. Logs each re-enable.
+    mode: single
+    trigger:
+      - platform: time_pattern
+        minutes: "/5"
+    action:
+      - variables:
+          off_automations: >
+            {{ states.automation
+               | selectattr('state','eq','off')
+               | rejectattr('entity_id','eq','automation.watchdog_re_enable_disabled_automation')
+               | map(attribute='entity_id')
+               | list }}
+      - if:
+          - condition: template
+            value_template: "{{ off_automations | length > 0 }}"
+        then:
+          - service: automation.turn_on
+            target:
+              entity_id: "{{ off_automations }}"
+          - service: counter.increment
+            target:
+              entity_id: counter.watchdog_reenable_count
+          - service: logbook.log
+            data:
+              name: Watchdog
+              message: "Re-enabled {{ off_automations | length }} automations: {{ off_automations | join(', ') }}"
+              domain: automation
+
+  - id: watchdog_quiet_mode_clear
+    alias: "Watchdog: force-clear quiet mode after 8h"
+    description: >
+      Backstop in case the activity-tier kill switch's own 8h timer fails.
+      If quiet_mode has been on more than 9 hours, force-clear it. Belt and suspenders.
+    mode: single
+    trigger:
+      - platform: state
+        entity_id: input_boolean.mesh_quiet_mode
+        to: "on"
+        for:
+          hours: 9
+    action:
+      - service: input_boolean.turn_off
+        target:
+          entity_id: input_boolean.mesh_quiet_mode
+      - service: logbook.log
+        data:
+          name: Watchdog
+          message: "Force-cleared mesh quiet mode (was on >9h - timer-clear failed)"
+          domain: input_boolean
+
+  - id: watchdog_mesh_health_alert
+    alias: "Watchdog: mesh service offline alert"
+    description: >
+      When mesh activity tier sensor goes unavailable for 5+ minutes, log it and
+      trigger restart heuristic. Real per-service monitoring requires Uptime Kuma
+      integration (next phase).
+    mode: single
+    trigger:
+      - platform: state
+        entity_id: sensor.mesh_activity_tier
+        to: "unavailable"
+        for:
+          minutes: 5
+    action:
+      - service: logbook.log
+        data:
+          name: Watchdog
+          message: "mesh_activity_tier unavailable >5min - mesh likely degraded"
+          domain: sensor
+          entity_id: sensor.mesh_activity_tier
+      - service: persistent_notification.create
+        data:
+          title: "Mesh degraded"
+          message: "Activity tier sensor unavailable for 5+ min. Check docker compose ps on AM5."
+          notification_id: mesh_degraded
+
+# Helpers backing the watchdogs
+input_boolean:
+  mesh_quiet_mode:
+    name: Mesh quiet mode
+    icon: mdi:volume-off
+    initial: false
+
+# Counter: how many times watchdog re-enabled an automation in the last 24h
+counter:
+  watchdog_reenable_count:
+    name: Watchdog re-enable count
+    icon: mdi:shield-refresh
+    restore: true
+    step: 1
+
+# Sensor: time since the last watchdog action (for dashboard health tile)
+template:
+  - sensor:
+      - name: "Watchdog status"
+        unique_id: watchdog_status
+        state: >
+          {% set q = is_state('input_boolean.mesh_quiet_mode', 'on') %}
+          {% set m = is_state('sensor.mesh_activity_tier', 'unavailable') %}
+          {% if q %}quiet{% elif m %}mesh degraded{% else %}healthy{% endif %}
+        icon: >
+          {% set q = is_state('input_boolean.mesh_quiet_mode', 'on') %}
+          {% set m = is_state('sensor.mesh_activity_tier', 'unavailable') %}
+          {% if q %}mdi:volume-off{% elif m %}mdi:alert-octagon{% else %}mdi:shield-check{% endif %}

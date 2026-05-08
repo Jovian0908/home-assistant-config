@@ -1,0 +1,41 @@
+# Real secrets - never commit
+secrets.yaml
+mesh.env
+mesh.secrets.env
+.storage/
+*.token
+*.key
+*.pem
+
+# HA runtime
+home-assistant.log*
+home-assistant_v2.db*
+*.db-shm
+*.db-wal
+deps/
+tts/
+www/
+.cloud/
+.HA_VERSION
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.egg-info/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# Editor
+.vscode/
+.idea/
+*.swp
+
+# OS
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Local-only generated artifacts
+docs/*.pdf

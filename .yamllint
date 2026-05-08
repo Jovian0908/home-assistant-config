@@ -1,0 +1,28 @@
+extends: default
+
+rules:
+  # HA configs are typically wider than 80
+  line-length:
+    max: 200
+    level: warning
+
+  # Allow truthy "on" / "off" - they're meaningful in HA YAML
+  truthy:
+    check-keys: false
+
+  # HA uses 2-space indent throughout
+  indentation:
+    spaces: 2
+    indent-sequences: true
+
+  # Common HA pattern: long string values
+  comments:
+    min-spaces-from-content: 1
+
+  # HA uses `!secret`, `!include`, `!include_dir_named` - tag handling
+  document-start:
+    present: false
+
+  # Triple-quoted long strings exist; don't fail on doc length
+  empty-lines:
+    max: 2

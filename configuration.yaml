@@ -1,0 +1,27 @@
+# mesh-ha-sandbox configuration.yaml (Phase 4 - 2026-05-08)
+# Adds packages/ directive for self-healing watchdogs.
+
+# Loads default set of integrations. Do not remove.
+default_config:
+
+homeassistant:
+  packages: !include_dir_named packages
+
+# Load frontend themes from the themes folder
+frontend:
+  themes: !include_dir_merge_named themes
+
+automation: !include automations.yaml
+script: !include scripts.yaml
+scene: !include scenes.yaml
+
+# Phase 2 (2026-05-08): mesh-renovation dashboard alongside default UI-edit dashboard
+lovelace:
+  mode: storage
+  dashboards:
+    mesh-renovation:
+      mode: yaml
+      title: Mesh AI
+      icon: mdi:robot-happy
+      show_in_sidebar: true
+      filename: dashboards/mesh-renovation.yaml
