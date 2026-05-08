@@ -1,0 +1,268 @@
+# mesh-renovation-sandbox.yaml - the AM5 sandbox killer dashboard.
+# 2026-05-08 rebuild: surfaces 26 live mesh REST sensors + 12 conversational tools.
+
+title: Mesh AI
+views:
+  # ============================================================
+  - title: Brain
+    path: brain
+    icon: mdi:brain
+    type: sections
+    max_columns: 3
+    sections:
+      # ----- Hero: live scene narrative + brain health -----
+      - type: grid
+        cards:
+          - type: custom:mushroom-template-card
+            primary: "Mesh brain"
+            secondary: "{{ states('sensor.mesh_brain') }} services alive · {{ state_attr('sensor.mesh_brain','health_pct') }}% healthy"
+            icon: mdi:brain
+            icon_color: |
+              {% set p = state_attr('sensor.mesh_brain','health_pct') | int(0) %}
+              {% if p >= 100 %}green{% elif p >= 60 %}amber{% else %}red{% endif %}
+            entity: sensor.mesh_brain
+            fill_container: true
+            multiline_secondary: true
+          - type: custom:mushroom-template-card
+            primary: "Activity tier"
+            secondary: "{{ states('sensor.mesh_activity_tier') | title }}"
+            icon: mdi:account-clock
+            icon_color: |
+              {% set t = states('sensor.mesh_activity_tier') %}
+              {% if t == 'active' %}green
+              {% elif t == 'quiet' %}blue
+              {% elif t == 'idle' %}orange
+              {% else %}grey{% endif %}
+            entity: sensor.mesh_activity_tier
+            fill_container: true
+          - type: markdown
+            content: >
+              ### Live scene narrative
+
+              {{ state_attr('sensor.mesh_scene_narrative','last_scene') or '_(no narrative yet)_' }}
+
+              ---
+
+              _Updated {{ relative_time(state_attr('sensor.mesh_scene_narrative','last_scene_updated') | as_datetime) if state_attr('sensor.mesh_scene_narrative','last_scene_updated') else 'never' }}_
+
+      # ----- Service grid: 6 mesh brains -----
+      - type: grid
+        cards:
+          - type: heading
+            heading: AI services
+            icon: mdi:graph-outline
+          - type: custom:mushroom-template-card
+            primary: "Council"
+            secondary: "{{ states('sensor.mesh_council_queries') }} queries · {{ states('sensor.mesh_council_cache_hit_ratio') }}% cache"
+            icon: mdi:account-supervisor
+            icon_color: "{{ 'green' if is_state('binary_sensor.mesh_council_alive','on') else 'red' }}"
+            entity: sensor.mesh_council_status
+          - type: custom:mushroom-template-card
+            primary: "Knowledge"
+            secondary: "{{ states('sensor.mesh_knowledge_chunks') }} chunks · {{ states('sensor.mesh_knowledge_files') }} files"
+            icon: mdi:database
+            icon_color: "{{ 'green' if is_state('binary_sensor.mesh_knowledge_alive','on') else 'red' }}"
+            entity: sensor.mesh_knowledge_chunks
+          - type: custom:mushroom-template-card
+            primary: "Vision"
+            secondary: "{{ states('sensor.mesh_vision_events') }} events · {{ states('sensor.mesh_vision_llava_calls') }} llava calls"
+            icon: mdi:eye
+            icon_color: "{{ 'green' if is_state('binary_sensor.mesh_vision_alive','on') else 'red' }}"
+            entity: sensor.mesh_vision_events
+          - type: custom:mushroom-template-card
+            primary: "Scene"
+            secondary: "{{ states('sensor.mesh_scene_events_today') }} today · {{ states('sensor.mesh_scene_routines_learned') }} routines"
+            icon: mdi:scene
+            icon_color: "{{ 'green' if is_state('binary_sensor.mesh_scene_alive','on') else 'red' }}"
+            entity: sensor.mesh_scene_events_today
+          - type: custom:mushroom-template-card
+            primary: "Memory"
+            secondary: "{{ states('sensor.mesh_memory_status') | title }}"
+            icon: mdi:memory
+            icon_color: "{{ 'green' if is_state('binary_sensor.mesh_memory_alive','on') else 'red' }}"
+            entity: sensor.mesh_memory_status
+          - type: custom:mushroom-template-card
+            primary: "Genesis"
+            secondary: "{{ states('sensor.mesh_genesis_capacity') }} pipelines"
+            icon: mdi:dna
+            icon_color: "{{ 'green' if is_state('binary_sensor.mesh_genesis_alive','on') else 'red' }}"
+            entity: sensor.mesh_genesis_capacity
+
+      # ----- Vision detail: enrolled faces -----
+      - type: grid
+        cards:
+          - type: heading
+            heading: Enrolled faces
+            icon: mdi:face-recognition
+          - type: markdown
+            content: >
+              {% set faces = state_attr('sensor.mesh_vision_faces_enrolled','enrolled') %}
+              {% if faces %}
+              **{{ faces | length }} faces enrolled:**
+              {% for f in faces %}
+              - **{{ f | title }}**
+              {% endfor %}
+
+              _Cameras seen: {{ state_attr('sensor.mesh_vision_events','cameras') | join(', ') }}_
+
+              _Model: {{ state_attr('sensor.mesh_vision_events','model') }} · {{ state_attr('sensor.mesh_vision_events','llava_errors') }} errors total_
+              {% else %}
+              _(no faces enrolled yet)_
+              {% endif %}
+
+      # ----- Council recent queries -----
+      - type: grid
+        cards:
+          - type: heading
+            heading: Recent council queries
+            icon: mdi:history
+          - type: markdown
+            content: >
+              {% set recent = state_attr('sensor.mesh_council_status','memory').recent if state_attr('sensor.mesh_council_status','memory') else [] %}
+              {% if recent %}
+              {% for q in recent[:5] %}
+              - **{{ q.timestamp[5:16] }}** -- _{{ q.text[:100] }}{% if q.text|length > 100 %}...{% endif %}_
+              {% endfor %}
+              {% else %}
+              _No recent queries._
+              {% endif %}
+
+  # ============================================================
+  - title: Tools
+    path: tools
+    icon: mdi:tools
+    type: sections
+    max_columns: 2
+    sections:
+      - type: grid
+        cards:
+          - type: heading
+            heading: 12 mesh tools (the headline)
+            icon: mdi:tools
+          - type: markdown
+            content: |
+              These 12 tools are registered as `llm.Tool` subclasses in `custom_components/mesh_llm/api.py`. The conversation agent picks them at runtime based on the user's prompt.
+
+              **Talk to the agent:** Settings → Voice assistants → Mesh AI → say a query that maps to one of the tools.
+
+              **Replay the 6-act demo:** `python scripts/flagship_demo_drive.py` regenerates `docs/flagship-demo-transcript.md`.
+
+      - type: grid
+        cards:
+          - type: heading
+            heading: Tool registry
+            icon: mdi:bookshelf
+          - type: markdown
+            content: |
+              | # | Tool | Backend | Purpose |
+              |---|---|---|---|
+              | 1 | `mesh_council_decide` | Council :8800 | Multi-step reasoning chain |
+              | 2 | `mesh_knowledge_search` | Knowledge :5850 | Semantic search across personal corpus |
+              | 3 | `mesh_knowledge_ingest` | Knowledge :5850 | Persist note/observation |
+              | 4 | `mesh_scene_current` | Scene :5555 | Live scene narrative |
+              | 5 | `mesh_vision_describe` | Vision :6600 | VLM scene description |
+              | 6 | `mesh_vision_list_recent` | Vision :6600 | Recent retained payloads |
+              | 7 | `mesh_aria_research` | ARIA :5050 | Spawn async research project |
+              | 8 | `mesh_aria_recall` | ARIA :5050 | List recent projects |
+              | 9 | `mesh_sentiment_analyze` | Sentiment :5800 | Sentiment + emotion classification |
+              | 10 | `mesh_routine_predict` | Routine :5500 | Routine prediction |
+              | 11 | `mesh_memory_recall` | Memory :5950 | Episodic memory search |
+              | 12 | `mesh_genesis_spawn` | Genesis :6400 | (DANGEROUS) Auto-code new capability |
+
+      - type: grid
+        cards:
+          - type: heading
+            heading: Conversation agents
+            icon: mdi:forum
+          - type: custom:auto-entities
+            card:
+              type: entities
+            filter:
+              include:
+                - domain: conversation
+
+  # ============================================================
+  - title: System
+    path: system
+    icon: mdi:server
+    type: sections
+    max_columns: 2
+    sections:
+      - type: grid
+        cards:
+          - type: heading
+            heading: Self-healing watchdog
+            icon: mdi:shield-check
+          - type: custom:mushroom-template-card
+            primary: Watchdog
+            secondary: "{{ states('sensor.watchdog_status') | title }} · {{ states('counter.watchdog_reenable_count') }} re-enables"
+            icon: "{{ state_attr('sensor.watchdog_status','icon') }}"
+            icon_color: |
+              {% set s = states('sensor.watchdog_status') %}
+              {% if s == 'healthy' %}green{% elif s == 'quiet' %}blue{% else %}red{% endif %}
+            entity: sensor.watchdog_status
+            fill_container: true
+          - type: entities
+            entities:
+              - entity: automation.watchdog_re_enable_disabled_automation
+                secondary_info: last-triggered
+              - entity: automation.watchdog_force_clear_quiet_mode_after_8h
+                secondary_info: last-triggered
+              - entity: automation.watchdog_mesh_service_offline_alert
+                secondary_info: last-triggered
+              - entity: input_boolean.mesh_quiet_mode
+
+      - type: grid
+        cards:
+          - type: heading
+            heading: Mesh service health
+            icon: mdi:heart-pulse
+          - type: glance
+            show_state: true
+            columns: 3
+            entities:
+              - entity: binary_sensor.mesh_council_alive
+                name: Council
+              - entity: binary_sensor.mesh_knowledge_alive
+                name: Knowledge
+              - entity: binary_sensor.mesh_vision_alive
+                name: Vision
+              - entity: binary_sensor.mesh_scene_alive
+                name: Scene
+              - entity: binary_sensor.mesh_memory_alive
+                name: Memory
+              - entity: binary_sensor.mesh_genesis_alive
+                name: Genesis
+
+      - type: grid
+        cards:
+          - type: heading
+            heading: Mesh metrics
+            icon: mdi:chart-line
+          - type: entities
+            entities:
+              - entity: sensor.mesh_council_queries
+              - entity: sensor.mesh_council_cache_hit_ratio
+              - entity: sensor.mesh_knowledge_chunks
+              - entity: sensor.mesh_knowledge_files
+              - entity: sensor.mesh_vision_events
+              - entity: sensor.mesh_vision_llava_calls
+              - entity: sensor.mesh_scene_events_today
+              - entity: sensor.mesh_scene_routines_learned
+              - entity: sensor.mesh_scene_anomalies_24h
+              - entity: sensor.mesh_sentiment_analyses
+              - entity: sensor.mesh_aria_projects_total
+
+      - type: grid
+        cards:
+          - type: heading
+            heading: Documentation
+            icon: mdi:file-document
+          - type: markdown
+            content: |
+              **Phase 5 LIVE** - auto-generated:
+              - **Family manual**: `docs/family-manual.md`
+              - **Technical manual**: `docs/technical-manual.md`
+              - **Audit**: `python scripts/ha_audit.py`
+              - **Public repo**: [github.com/Jovian0908/home-assistant-config](https://github.com/Jovian0908/home-assistant-config)
+              - **Demo transcript**: `docs/flagship-demo-transcript.md`

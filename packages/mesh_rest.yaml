@@ -1,0 +1,232 @@
+# packages/mesh-rest.yaml - REST sensors pulling live data from each mesh service.
+# Phase 6 of the renovation v2 (2026-05-08): wire the AI brain into the dashboard.
+#
+# Each REST sensor polls a mesh service's /health endpoint on a 30s cadence and
+# surfaces the response as state + attributes. Dashboard cards reference these.
+
+rest:
+  # ---- Council :8800 ------------------------------------------------------
+  - resource: http://council:8800/health
+    scan_interval: 30
+    sensor:
+      - name: "Mesh Council status"
+        unique_id: mesh_council_status
+        value_template: "{{ value_json.status }}"
+        json_attributes:
+          - total_queries
+          - cache_hits
+          - cache_hit_ratio
+          - memory
+        icon: mdi:account-supervisor
+      - name: "Mesh Council queries"
+        unique_id: mesh_council_queries
+        value_template: "{{ value_json.total_queries }}"
+        unit_of_measurement: "queries"
+        state_class: total_increasing
+        icon: mdi:counter
+      - name: "Mesh Council cache hit ratio"
+        unique_id: mesh_council_cache_hit_ratio
+        value_template: "{{ (value_json.cache_hit_ratio * 100) | round(1) }}"
+        unit_of_measurement: "%"
+        icon: mdi:cached
+
+  # ---- Knowledge :5850 ----------------------------------------------------
+  - resource: http://knowledge:5850/health
+    scan_interval: 30
+    sensor:
+      - name: "Mesh Knowledge chunks"
+        unique_id: mesh_knowledge_chunks
+        value_template: "{{ value_json.chromadb_count }}"
+        unit_of_measurement: "chunks"
+        state_class: total_increasing
+        icon: mdi:database
+        json_attributes:
+          - files_ingested
+          - total_chunks
+          - watched_folders
+      - name: "Mesh Knowledge files"
+        unique_id: mesh_knowledge_files
+        value_template: "{{ value_json.files_ingested }}"
+        unit_of_measurement: "files"
+        icon: mdi:file-document-multiple
+
+  # ---- Vision :6600 -------------------------------------------------------
+  - resource: http://vision:6600/health
+    scan_interval: 30
+    sensor:
+      - name: "Mesh Vision events"
+        unique_id: mesh_vision_events
+        value_template: "{{ value_json.events_processed }}"
+        unit_of_measurement: "events"
+        state_class: total_increasing
+        icon: mdi:eye
+        json_attributes:
+          - llava_calls
+          - llava_errors
+          - cameras
+          - last_per_cam
+          - model
+          - enrolled
+          - uptime_s
+      - name: "Mesh Vision llava calls"
+        unique_id: mesh_vision_llava_calls
+        value_template: "{{ value_json.llava_calls }}"
+        unit_of_measurement: "calls"
+        state_class: total_increasing
+        icon: mdi:brain
+      - name: "Mesh Vision faces enrolled"
+        unique_id: mesh_vision_faces_enrolled
+        value_template: "{{ value_json.enrolled | length }}"
+        unit_of_measurement: "faces"
+        icon: mdi:face-recognition
+        json_attributes:
+          - enrolled
+
+  # ---- Scene :5555 (THE GOLD - live narrative + routines) ---------------
+  - resource: http://scene:5555/health
+    scan_interval: 30
+    sensor:
+      - name: "Mesh Scene narrative"
+        unique_id: mesh_scene_narrative
+        # Truncate to 250 char to fit in state; full text in attribute
+        value_template: "{{ (value_json.last_scene | default('(no narrative yet)'))[:250] }}"
+        json_attributes:
+          - last_scene
+          - last_scene_updated
+        icon: mdi:script-text
+      - name: "Mesh Scene events today"
+        unique_id: mesh_scene_events_today
+        value_template: "{{ value_json.today_events }}"
+        unit_of_measurement: "events"
+        icon: mdi:calendar-today
+      - name: "Mesh Scene routines learned"
+        unique_id: mesh_scene_routines
+        value_template: "{{ value_json.routines_learned }}"
+        unit_of_measurement: "routines"
+        icon: mdi:repeat
+      - name: "Mesh Scene anomalies 24h"
+        unique_id: mesh_scene_anomalies
+        value_template: "{{ value_json.anomalies_24h }}"
+        unit_of_measurement: "anomalies"
+        icon: mdi:alert-decagram
+      - name: "Mesh Scene status"
+        unique_id: mesh_scene_status
+        value_template: "{{ value_json.status }}"
+        json_attributes:
+          - mqtt_connected
+          - ollama_available
+          - activity_recognition
+          - version
+        icon: mdi:scene
+
+  # ---- Sentiment :5800 ----------------------------------------------------
+  - resource: http://sentiment:5800/health
+    scan_interval: 60
+    sensor:
+      - name: "Mesh Sentiment analyses"
+        unique_id: mesh_sentiment_analyses
+        value_template: "{{ value_json.total_analyses }}"
+        unit_of_measurement: "analyses"
+        state_class: total_increasing
+        icon: mdi:emoticon
+
+  # ---- Genesis :6400 ------------------------------------------------------
+  - resource: http://genesis:6400/health
+    scan_interval: 60
+    sensor:
+      - name: "Mesh Genesis capacity"
+        unique_id: mesh_genesis_capacity
+        value_template: "{{ value_json.capacity }}"
+        json_attributes:
+          - deployed_services
+          - max_services
+          - status
+        icon: mdi:dna
+
+  # ---- ARIA :5050 (auth) --------------------------------------------------
+  - resource: http://aria:5050/projects
+    scan_interval: 60
+    headers:
+      X-Mesh-Token: !secret MESH_TOKEN
+    sensor:
+      - name: "Mesh Aria projects total"
+        unique_id: mesh_aria_projects_total
+        value_template: "{{ (value_json.projects | default([]) | length) + (value_json.archived | default([]) | length) }}"
+        unit_of_measurement: "projects"
+        icon: mdi:flask
+        json_attributes:
+          - projects
+          - archived
+      - name: "Mesh Aria projects active"
+        unique_id: mesh_aria_projects_active
+        value_template: "{{ value_json.projects | default([]) | length }}"
+        unit_of_measurement: "active"
+        icon: mdi:flask-outline
+
+  # ---- Memory :5950 -------------------------------------------------------
+  - resource: http://memory:5950/health
+    scan_interval: 60
+    sensor:
+      - name: "Mesh Memory status"
+        unique_id: mesh_memory_status
+        value_template: "{{ value_json.status }}"
+        icon: mdi:memory
+
+# ---- Service health binary sensors (one per mesh service) -----------------
+binary_sensor:
+  - platform: template
+    sensors:
+      mesh_council_alive:
+        friendly_name: "Mesh Council alive"
+        device_class: connectivity
+        value_template: "{{ states('sensor.mesh_council_status') == 'running' }}"
+      mesh_knowledge_alive:
+        friendly_name: "Mesh Knowledge alive"
+        device_class: connectivity
+        value_template: "{{ states('sensor.mesh_knowledge_chunks') | int(default=0) > 0 }}"
+      mesh_vision_alive:
+        friendly_name: "Mesh Vision alive"
+        device_class: connectivity
+        value_template: "{{ states('sensor.mesh_vision_events') | int(default=0) > 0 }}"
+      mesh_scene_alive:
+        friendly_name: "Mesh Scene alive"
+        device_class: connectivity
+        value_template: "{{ states('sensor.mesh_scene_status') == 'running' }}"
+      mesh_memory_alive:
+        friendly_name: "Mesh Memory alive"
+        device_class: connectivity
+        value_template: "{{ states('sensor.mesh_memory_status') == 'healthy' }}"
+      mesh_genesis_alive:
+        friendly_name: "Mesh Genesis alive"
+        device_class: connectivity
+        value_template: "{{ state_attr('sensor.mesh_genesis_capacity','status') == 'online' }}"
+
+# ---- Aggregate "mesh brain healthy" sensor --------------------------------
+template:
+  - sensor:
+      - name: "Mesh brain"
+        unique_id: mesh_brain
+        state: >
+          {% set total = 6 %}
+          {% set alive = [
+            is_state('binary_sensor.mesh_council_alive','on'),
+            is_state('binary_sensor.mesh_knowledge_alive','on'),
+            is_state('binary_sensor.mesh_vision_alive','on'),
+            is_state('binary_sensor.mesh_scene_alive','on'),
+            is_state('binary_sensor.mesh_memory_alive','on'),
+            is_state('binary_sensor.mesh_genesis_alive','on'),
+          ] | select | list | length %}
+          {{ alive }}/{{ total }}
+        icon: mdi:brain
+        attributes:
+          health_pct: >
+            {% set total = 6 %}
+            {% set alive = [
+              is_state('binary_sensor.mesh_council_alive','on'),
+              is_state('binary_sensor.mesh_knowledge_alive','on'),
+              is_state('binary_sensor.mesh_vision_alive','on'),
+              is_state('binary_sensor.mesh_scene_alive','on'),
+              is_state('binary_sensor.mesh_memory_alive','on'),
+              is_state('binary_sensor.mesh_genesis_alive','on'),
+            ] | select | list | length %}
+            {{ ((alive / total) * 100) | int }}
