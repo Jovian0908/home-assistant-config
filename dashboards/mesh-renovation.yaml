@@ -1,234 +1,247 @@
-# Mesh AI Renovation v2 — Lovelace Dashboard
-# 6 sections, mobile-first, demonstrates the 12 HACS plugins installed in Phase 1a.
-# Cards reference live mesh entities flowing in via MQTT discovery.
+# Mesh AI Renovation v2 - Lovelace Dashboard (rebuild 2026-05-08)
 #
-# Plugins used:
-#   - bubble-card (sub-buttons, pop-up nav)
-#   - mushroom (room tiles)
-#   - card-mod (custom CSS polish)
-#   - button-card (custom action buttons)
-#   - apexcharts-card (trend charts)
-#   - auto-entities (filter-driven entity lists)
-#   - decluttering-card (template re-use)
-#   - layout-card (custom grid)
-#   - swipe-card (multi-card carousel)
-#   - advanced-camera-card (Frigate timeline; needs Frigate config to populate)
-#   - mini-media-player (multi-room audio)
-#   - floor3d-pro-card (3D floorplan; needs floor3d model)
+# Real entities, real rooms, mushroom-styled. Built for CM5 (192.168.0.50:8123)
+# where all 29 lights, FP2 presence, media players, and 73 Uptime Kuma
+# monitors live.
 
 title: Mesh AI
 views:
-  # ────────────────────────────────────────────────────────────────
+  # ============================================================
   - title: Home
+    path: home
     icon: mdi:home-variant
     type: sections
     max_columns: 3
     sections:
+      # ----- Header: time + watchdog -----
       - type: grid
         cards:
-          - type: heading
-            heading: Activity tier
-            heading_style: title
-            icon: mdi:account-clock
           - type: custom:mushroom-template-card
-            primary: Mesh activity tier
-            secondary: "{{ states('sensor.mesh_activity_tier') | title }}"
-            icon: mdi:account-clock
-            icon_color: |
-              {% set t = states('sensor.mesh_activity_tier') %}
-              {% if t == 'active' %}green{% elif t == 'quiet' %}blue{% elif t == 'idle' %}orange{% else %}grey{% endif %}
-            tap_action:
-              action: more-info
-              entity: sensor.mesh_activity_tier
-            entity: sensor.mesh_activity_tier
-
-      - type: grid
-        cards:
-          - type: heading
-            heading: Voice
-            heading_style: title
-            icon: mdi:microphone
-          - type: custom:mushroom-template-card
-            primary: Mesh AI assistant
-            secondary: qwen2.5:14b · mesh_llm (12 tools)
-            icon: mdi:robot-happy
-            icon_color: deep-purple
-            tap_action:
-              action: navigate
-              navigation_path: /developer-tools/yaml
-          - type: markdown
-            content: >
-              **Try asking via voice (or HA Assist):**
-              - "What's my current scene?"
-              - "Search my notes for X"
-              - "List my aria research"
-              - "Council, should I do Y?"
-              - "Save this note: ..."
-
-      - type: grid
-        cards:
-          - type: heading
-            heading: Now
-            heading_style: title
+            primary: "{{ now().strftime('%A, %B %d') }}"
+            secondary: "{{ now().strftime('%I:%M %p') }} - {{ states('weather.home') | title if states('weather.home') not in ['unknown','unavailable'] else 'Home' }}"
             icon: mdi:weather-partly-cloudy
+            icon_color: amber
+            fill_container: true
+            multiline_secondary: true
           - type: custom:mushroom-template-card
-            primary: "{{ now().strftime('%A, %B %-d') }}"
-            secondary: "{{ now().strftime('%I:%M %p') }}"
-            icon: mdi:clock-outline
-          - type: sun
-            entity: sun.sun
+            primary: Watchdog
+            secondary: "{{ states('sensor.watchdog_status') | title }} - {{ states('counter.watchdog_reenable_count') }} re-enables"
+            icon: "{{ state_attr('sensor.watchdog_status','icon') }}"
+            icon_color: |
+              {% set s = states('sensor.watchdog_status') %}
+              {% if s == 'healthy' %}green{% elif s == 'quiet' %}blue{% else %}red{% endif %}
+            entity: sensor.watchdog_status
+            fill_container: true
 
-  # ────────────────────────────────────────────────────────────────
-  - title: AI Status
-    icon: mdi:brain
+      # ----- Presence map (FP2 zones) -----
+      - type: grid
+        cards:
+          - type: heading
+            heading: Presence
+            icon: mdi:radar
+          - type: custom:mushroom-template-card
+            primary: Living room
+            secondary: "{{ 'Occupied' if is_state('binary_sensor.fp2_living_room_presence','on') else 'Empty' }}"
+            icon: mdi:sofa
+            icon_color: "{{ 'amber' if is_state('binary_sensor.fp2_living_room_presence','on') else 'grey' }}"
+            entity: binary_sensor.fp2_living_room_presence
+          - type: custom:mushroom-template-card
+            primary: Kitchen
+            secondary: "{{ 'Occupied' if is_state('binary_sensor.fp2_kitchen_presence','on') else 'Empty' }}"
+            icon: mdi:silverware-fork-knife
+            icon_color: "{{ 'amber' if is_state('binary_sensor.fp2_kitchen_presence','on') else 'grey' }}"
+            entity: binary_sensor.fp2_kitchen_presence
+          - type: custom:mushroom-template-card
+            primary: Hallway
+            secondary: "{{ 'Occupied' if is_state('binary_sensor.fp2_hallway_presence','on') else 'Empty' }}"
+            icon: mdi:walk
+            icon_color: "{{ 'amber' if is_state('binary_sensor.fp2_hallway_presence','on') else 'grey' }}"
+            entity: binary_sensor.fp2_hallway_presence
+          - type: custom:mushroom-template-card
+            primary: Office
+            secondary: "{{ 'Occupied' if is_state('binary_sensor.fp2_office_presence','on') else 'Empty' }}"
+            icon: mdi:desk
+            icon_color: "{{ 'amber' if is_state('binary_sensor.fp2_office_presence','on') else 'grey' }}"
+            entity: binary_sensor.fp2_office_presence
+          - type: custom:mushroom-template-card
+            primary: Dining
+            secondary: "{{ 'Occupied' if is_state('binary_sensor.fp2_dining_presence','on') else 'Empty' }}"
+            icon: mdi:silverware
+            icon_color: "{{ 'amber' if is_state('binary_sensor.fp2_dining_presence','on') else 'grey' }}"
+            entity: binary_sensor.fp2_dining_presence
+          - type: custom:mushroom-template-card
+            primary: Master bedroom
+            secondary: "{{ 'Occupied' if is_state('binary_sensor.master_bedroom_presence','on') else 'Empty' }}"
+            icon: mdi:bed
+            icon_color: "{{ 'amber' if is_state('binary_sensor.master_bedroom_presence','on') else 'grey' }}"
+            entity: binary_sensor.master_bedroom_presence
+
+      # ----- Media (now playing) -----
+      - type: grid
+        cards:
+          - type: heading
+            heading: Media
+            icon: mdi:music
+          - type: custom:auto-entities
+            card:
+              type: vertical-stack
+            filter:
+              include:
+                - domain: media_player
+                  state: playing
+                  options:
+                    type: custom:mini-media-player
+                    artwork: cover
+                    info: scroll
+                    hide:
+                      power: false
+                      source: false
+            sort:
+              method: friendly_name
+            show_empty: false
+
+  # ============================================================
+  - title: Lights
+    path: lights
+    icon: mdi:lightbulb-group
     type: sections
     max_columns: 3
     sections:
       - type: grid
         cards:
           - type: heading
-            heading: Conversation agents
-            icon: mdi:forum
-          - type: custom:auto-entities
-            card:
-              type: entities
-              title: Active conversation agents
-            filter:
-              include:
-                - domain: conversation
+            heading: Kitchen
+            icon: mdi:silverware-fork-knife
+          - type: custom:mushroom-light-card
+            entity: light.kitchen_light
+            show_brightness_control: true
+            show_color_temp_control: true
+            collapsible_controls: true
+          - type: custom:mushroom-light-card
+            entity: light.kitchen_overhead
+            show_brightness_control: true
+            collapsible_controls: true
+          - type: custom:mushroom-light-card
+            entity: light.kitchen_counter
+            show_brightness_control: true
+            collapsible_controls: true
+          - type: custom:mushroom-light-card
+            entity: light.counter_lights
+            show_brightness_control: true
+            collapsible_controls: true
+          - type: custom:mushroom-light-card
+            entity: light.hoodfan_light
+            show_brightness_control: true
+            collapsible_controls: true
 
       - type: grid
         cards:
           - type: heading
-            heading: Mesh service map
-            icon: mdi:graph
-          - type: markdown
-            content: |
-              **L0 Infra**  Ollama · MQTT (CM5) · Whisper · Piper
-
-              **L1 Core**   ChromaDB · Nexus · Cache
-
-              **L2 Intelligence**
-              Orchestrator · Conversation · Energy · Presence · Routine · Scene · Notification · Sentiment · Voice · Knowledge · ActivityTier
-
-              **L3 AI Brains**  Council · ARIA · Cortex
-
-              **L5 Organism**  Memory · Organism · Evolution · Genesis
-
-              **L6 Apps**   JellyTube · CoffeeBank · ChatProxy · Bridge · Open-WebUI
-
-              **MCP Bridge** :7060 → 12 tools registered
+            heading: Bedroom and bath
+            icon: mdi:bed
+          - type: custom:mushroom-light-card
+            entity: light.bedroom_light
+            show_brightness_control: true
+            show_color_temp_control: true
+            collapsible_controls: true
+          - type: custom:mushroom-light-card
+            entity: light.bathroom_lights
+            show_brightness_control: true
+            collapsible_controls: true
 
       - type: grid
         cards:
           - type: heading
-            heading: Mesh tool registry
-            icon: mdi:tools
-          - type: markdown
-            content: |
-              | Tool | Backend | Status |
-              |---|---|---|
-              | `mesh_council_decide` | Council :8800 | ✅ wired |
-              | `mesh_knowledge_search` | Knowledge :5850 | ✅ wired |
-              | `mesh_knowledge_ingest` | Knowledge :5850 | ✅ wired |
-              | `mesh_scene_current` | Scene :5555 | ⚠ endpoint format |
-              | `mesh_vision_describe` | Vision :6600 | ✅ wired |
-              | `mesh_vision_list_recent` | Vision :6600 | ✅ wired |
-              | `mesh_aria_research` | aria :5050 | ⚠ payload polish |
-              | `mesh_aria_recall` | aria :5050 | ✅ wired |
-              | `mesh_sentiment_analyze` | Sentiment :5800 | ✅ wired |
-              | `mesh_routine_predict` | Routine :5500 | ✅ wired |
-              | `mesh_memory_recall` | Memory :5950 | ✅ wired |
-              | `mesh_genesis_spawn` | Genesis :6400 | ✅ wired (dry-run guard) |
+            heading: Hall, entry, dining
+            icon: mdi:home
+          - type: custom:mushroom-light-card
+            entity: light.hall_light
+            show_brightness_control: true
+            collapsible_controls: true
+          - type: custom:mushroom-light-card
+            entity: light.entry_light
+            show_brightness_control: true
+            collapsible_controls: true
+          - type: custom:mushroom-light-card
+            entity: light.diningroom_lamp
+            show_brightness_control: true
+            collapsible_controls: true
+          - type: custom:mushroom-light-card
+            entity: light.lamps
+            show_brightness_control: true
+            collapsible_controls: true
+          - type: custom:mushroom-light-card
+            entity: light.door_light
+            show_brightness_control: true
+            collapsible_controls: true
 
-  # ────────────────────────────────────────────────────────────────
-  - title: Energy
-    icon: mdi:lightning-bolt
-    type: sections
-    max_columns: 2
-    sections:
-      - type: grid
-        cards:
-          - type: heading
-            heading: Live consumption
-            icon: mdi:flash
-          - type: markdown
-            content: >
-              **Phase 2 placeholder** — populates when EnergyBot's MQTT discovery
-              lands `sensor.energy_*` entities into sandbox.
-
-              When wired:
-              - `apexcharts-card` 24h consumption stack
-              - `auto-entities` plug grid (TP-Link KP125M)
-              - Anomaly feed from `mesh/energy/anomaly` MQTT topic
-
-      - type: grid
-        cards:
-          - type: heading
-            heading: Predictive
-            icon: mdi:chart-line
-          - type: markdown
-            content: |
-              When the renovation reaches Phase 4 with Forecast.Solar + Octopus/Tibber:
-              - real-time badges
-              - water Sankey (HA 2026.3 native)
-              - Predictive pre-heat schedule
-
-  # ────────────────────────────────────────────────────────────────
+  # ============================================================
   - title: Cameras
+    path: cameras
     icon: mdi:cctv
-    type: sections
-    max_columns: 2
-    sections:
-      - type: grid
-        cards:
-          - type: heading
-            heading: Frigate
-            icon: mdi:cctv
-          - type: markdown
-            content: >
-              **Phase 3 placeholder** — when Frigate 0.16 upgrade + face recognition
-              lands and the Frigate integration is added to sandbox HA, this section
-              will host:
-
-              - `custom:advanced-camera-card` v3 (timeline + face-recognized arrivals)
-              - GenAI Review Summaries from Frigate 0.16
-              - Mesh vision-narration overlay (mesh_vision_describe outputs)
-
-      - type: grid
-        cards:
-          - type: heading
-            heading: Vision recent
-            icon: mdi:eye
-          - type: markdown
-            content: |
-              `mesh/vision/<camera>/{scene,detected,flags,raw}` MQTT topics
-              flow into sandbox once we add MQTT-discovery sensors per camera.
-
-  # ────────────────────────────────────────────────────────────────
-  - title: Floor3D
-    icon: mdi:floor-plan
     type: sections
     max_columns: 1
     sections:
       - type: grid
         cards:
           - type: heading
-            heading: 3D floorplan
-            icon: mdi:floor-plan
+            heading: Living room (Tapo C260)
+            icon: mdi:cctv
+          - type: picture-entity
+            entity: camera.tapo_c260
+            show_state: false
+            show_name: false
+            camera_view: live
+          - type: heading
+            heading: Front door (G410)
+            icon: mdi:cctv
+          - type: picture-entity
+            entity: camera.g410_front
+            show_state: false
+            show_name: false
+            camera_view: live
+
+  # ============================================================
+  - title: Energy
+    path: energy
+    icon: mdi:lightning-bolt
+    type: sections
+    max_columns: 2
+    sections:
+      - type: grid
+        cards:
           - type: markdown
-            content: >
-              **Phase 2c placeholder** — needs a `.glb` floorplan model
-              for floor3d-pro-card. Once you provide the model file
-              and entity-to-room mapping, this section hosts:
+            content: |
+              ## Native energy dashboard
 
-              - Live light states overlaid on rooms
-              - Presence dots per FP2/FP300 zone
-              - Climate temp gradient per room
-              - Click area → drill to room controls
+              The full energy view (Sankey, sources, daily breakdown) lives at:
 
-  # ────────────────────────────────────────────────────────────────
+              **[/energy](/energy)** - HA's first-party energy dashboard
+
+              Already wired with grid + electricity tracking from your recorder.
+
+      - type: grid
+        cards:
+          - type: heading
+            heading: Smart plugs
+            icon: mdi:power-socket
+          - type: custom:auto-entities
+            card:
+              type: glance
+              show_state: true
+              show_name: true
+            filter:
+              include:
+                - entity_id: switch.kasa_*
+                - entity_id: switch.kp125m_*
+                - entity_id: switch.tp_link*
+            sort:
+              method: friendly_name
+            show_empty: false
+
+  # ============================================================
   - title: System
+    path: system
     icon: mdi:server
     type: sections
     max_columns: 2
@@ -236,29 +249,49 @@ views:
       - type: grid
         cards:
           - type: heading
-            heading: Watchdog state
-            icon: mdi:heart-pulse
+            heading: Self-healing
+            icon: mdi:shield-check
           - type: custom:mushroom-template-card
             primary: Watchdog
-            secondary: "{{ states('sensor.watchdog_status') | title }}"
-            icon: "{{ state_attr('sensor.watchdog_status', 'icon') }}"
+            secondary: "{{ states('sensor.watchdog_status') | title }} - {{ states('counter.watchdog_reenable_count') }} lifetime re-enables"
+            icon: "{{ state_attr('sensor.watchdog_status','icon') }}"
             icon_color: |
               {% set s = states('sensor.watchdog_status') %}
               {% if s == 'healthy' %}green{% elif s == 'quiet' %}blue{% else %}red{% endif %}
             entity: sensor.watchdog_status
+            fill_container: true
           - type: entities
-            title: Self-healing
             entities:
               - entity: automation.watchdog_re_enable_disabled_automation
-                name: Re-enable disabled automation (every 5min)
+                name: Re-enable disabled automation
+                secondary_info: last-triggered
               - entity: automation.watchdog_force_clear_quiet_mode_after_8h
                 name: Quiet-mode 9h backstop
+                secondary_info: last-triggered
               - entity: automation.watchdog_mesh_service_offline_alert
-                name: Mesh degraded alert
-              - entity: counter.watchdog_reenable_count
-                name: Lifetime re-enables
+                name: Mesh-degraded alert
+                secondary_info: last-triggered
               - entity: input_boolean.mesh_quiet_mode
                 name: Quiet mode (kill switch)
+
+      - type: grid
+        cards:
+          - type: heading
+            heading: Service uptime (Uptime Kuma)
+            icon: mdi:heart-pulse
+          - type: custom:auto-entities
+            card:
+              type: glance
+              show_state: true
+              columns: 4
+            filter:
+              include:
+                - entity_id: sensor.*_uptime_1_day
+            sort:
+              method: state
+              numeric: true
+              reverse: false
+            show_empty: false
 
       - type: grid
         cards:
@@ -267,8 +300,9 @@ views:
             icon: mdi:file-document
           - type: markdown
             content: |
-              **Phase 5 LIVE** — basnijholt-style auto-doc shipped:
-              - **Family manual**: `docs/family-manual.md` (rebuilt by `ha_doc_generator.py`)
-              - **Technical manual**: `docs/technical-manual.md` (future-me reference)
-              - **Audit**: `python scripts/ha_audit.py` runs find-dangling-refs + find-unused-sensors + check-repairs in one shot
-              - **Flagship demo**: `docs/flagship-demo-transcript.md` (6/6 acts captured 2026-05-07)
+              **Phase 5 LIVE** - auto-generated:
+              - **Family manual**: `docs/family-manual.md`
+              - **Technical manual**: `docs/technical-manual.md`
+              - **Audit**: `python scripts/ha_audit.py`
+              - **Public repo**: [github.com/Jovian0908/home-assistant-config](https://github.com/Jovian0908/home-assistant-config)
+              - **Demo transcript**: `docs/flagship-demo-transcript.md`
