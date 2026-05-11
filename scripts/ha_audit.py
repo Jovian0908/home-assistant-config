@@ -21,7 +21,6 @@ import sys
 from pathlib import Path
 
 import websockets
-import yaml
 
 
 def load_token(secrets_path: Path, prefer: str = "HA_ADMIN_TOKEN") -> str:
